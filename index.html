@@ -3,15 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gomoku Online</title>
+    <title>Gomoku Online Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body { background: #1a1a1a; color: white; font-family: sans-serif; }
-        .grid-board { display: grid; grid-template-columns: repeat(10, 1fr); gap: 1px; background: #444; border: 2px solid #444; width: 100%; max-width: 500px; aspect-ratio: 1; }
-        .cell { background: #2a2a2a; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; cursor: pointer; user-select: none; }
-        .cell:hover { background: #333; }
-        .cell.win { background: #166534; }
+        .grid-board { display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px; background: #444; border: 2px solid #444; width: 100%; max-width: 500px; aspect-ratio: 1; }
+        .cell { background: #2a2a2a; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; cursor: pointer; user-select: none; transition: 0.2s; }
+        .cell:hover:not(.filled) { background: #333; }
+        .cell.win { background: #166534 !important; animation: pulse 1s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
     </style>
 </head>
 <body class="flex items-center justify-center min-h-screen p-4">
@@ -24,19 +25,21 @@
         <div class="w-full md:w-64 space-y-4">
             <div class="bg-[#2a2a2a] p-4 rounded-lg border border-gray-700">
                 <div class="flex items-center gap-2 mb-2">
-                    <div id="statusDot" class="w-3 h-3 rounded-full bg-red-500"></div>
-                    <span id="statusText" class="text-xs font-mono uppercase">Odpojeno</span>
+                    <div id="statusDot" class="w-3 h-3 rounded-full bg-red-500 text-transparent">.</div>
+                    <span id="statusText" class="text-xs font-mono uppercase text-gray-400">Připojování...</span>
                 </div>
-                <div class="text-2xl font-bold mb-1" id="turnDisplay">Tahu: ❌</div>
-                <div id="gameMsg" class="text-green-400 font-bold h-6"></div>
+                <div class="text-2xl font-bold mb-1" id="turnDisplay">Na tahu: ❌</div>
+                <div id="gameMsg" class="text-yellow-400 font-bold text-lg h-8 mt-2"></div>
             </div>
 
-            <button onclick="resetGame()" class="w-full bg-blue-600 hover:bg-blue-700 p-3 rounded font-bold transition">
-                Restartovat hru
+            <button onclick="resetGame()" class="w-full bg-blue-600 hover:bg-blue-700 p-3 rounded font-bold transition shadow-lg">
+                Nová hra (Restart)
             </button>
             
-            <div class="text-[10px] text-gray-500 break-all bg-black p-2 rounded">
-                Room ID: <span id="roomId" class="text-blue-400"></span>
+            <div class="p-3 bg-black rounded border border-gray-800">
+                <p class="text-[10px] text-gray-500 mb-1 uppercase">Odkaz pro protihráče:</p>
+                <input type="text" id="shareUrl" readonly onclick="this.select()" 
+                       class="w-full bg-[#111] text-blue-400 text-[10px] p-1 rounded border border-gray-700 cursor-pointer">
             </div>
         </div>
     </div>
@@ -45,26 +48,33 @@
         const SB_URL = "https://nazlzqzihfpwmtulfhim.supabase.co";
         const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5hemx6cXppaGZwd210dWxmaGltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwMjE0MDEsImV4cCI6MjA4OTU5NzQwMX0.hEN9aqpXpgCe03qKjYos79iZKeC9JW9clqqKaBBHuis";
 
-        // Inicializace místnosti
         const params = new URLSearchParams(window.location.search);
         let room = params.get('r') || Math.random().toString(36).substring(7);
         if (!params.get('r')) window.history.replaceState({}, '', '?r=' + room);
-        document.getElementById('roomId').textContent = room;
+        
+        document.getElementById('shareUrl').value = window.location.href;
 
         let sb, chan;
         let board = Array(100).fill(null);
         let turn = 'X';
         let active = true;
+        let winIndices = [];
 
         function initSupabase() {
             sb = supabase.createClient(SB_URL, SB_KEY);
-            chan = sb.channel('piskvorky_' + room, { config: { broadcast: { self: true } } });
+            chan = sb.channel('room_' + room, { config: { broadcast: { self: true } } });
 
             chan.on('broadcast', { event: 'move' }, ({ payload }) => {
                 if (board[payload.idx] === null && active) {
                     board[payload.idx] = payload.symbol;
-                    checkWin();
-                    turn = payload.symbol === 'X' ? 'O' : 'X';
+                    const win = checkWin(payload.idx, payload.symbol);
+                    if (win) {
+                        active = false;
+                        winIndices = win;
+                        document.getElementById('gameMsg').textContent = `Vítěz: ${payload.symbol === 'X' ? '❌' : '⭕'}!`;
+                    } else {
+                        turn = payload.symbol === 'X' ? 'O' : 'X';
+                    }
                     render();
                 }
             })
@@ -72,15 +82,38 @@
                 board = Array(100).fill(null);
                 turn = 'X';
                 active = true;
+                winIndices = [];
                 document.getElementById('gameMsg').textContent = '';
                 render();
             })
             .subscribe(status => {
                 const dot = document.getElementById('statusDot');
                 const txt = document.getElementById('statusText');
-                txt.textContent = status;
                 dot.className = `w-3 h-3 rounded-full ${status === 'SUBSCRIBED' ? 'bg-green-500' : 'bg-orange-500'}`;
+                txt.textContent = status === 'SUBSCRIBED' ? 'Online' : status;
             });
+        }
+
+        function checkWin(idx, symbol) {
+            const size = 10;
+            const r = Math.floor(idx / size);
+            const c = idx % size;
+            const dirs = [[0, 1], [1, 0], [1, 1], [1, -1]];
+
+            for (let [dr, dc] of dirs) {
+                let line = [idx];
+                // Check oba směry pro každou linii
+                [[dr, dc], [-dr, -dc]].forEach(([curDr, curDc]) => {
+                    for (let i = 1; i < 5; i++) {
+                        let nr = r + curDr * i, nc = c + curDc * i;
+                        if (nr >= 0 && nr < size && nc >= 0 && nc < size && board[nr * size + nc] === symbol) {
+                            line.push(nr * size + nc);
+                        } else break;
+                    }
+                });
+                if (line.length >= 5) return line;
+            }
+            return null;
         }
 
         function render() {
@@ -88,34 +121,17 @@
             container.innerHTML = '';
             board.forEach((val, i) => {
                 const div = document.createElement('div');
-                div.className = 'cell';
+                div.className = `cell ${val ? 'filled' : ''} ${winIndices.includes(i) ? 'win' : ''}`;
                 div.textContent = val === 'X' ? '❌' : (val === 'O' ? '⭕' : '');
-                div.onclick = () => sendMove(i);
+                div.onclick = () => { if (active && !board[i]) chan.send({ type: 'broadcast', event: 'move', payload: { idx: i, symbol: turn } }); };
                 container.appendChild(div);
             });
-            document.getElementById('turnDisplay').textContent = `Tahu: ${turn === 'X' ? '❌' : '⭕'}`;
+            document.getElementById('turnDisplay').textContent = `Na tahu: ${turn === 'X' ? '❌' : '⭕'}`;
         }
 
-        function sendMove(idx) {
-            if (!active || board[idx] !== null) return;
-            chan.send({ type: 'broadcast', event: 'move', payload: { idx, symbol: turn } });
-        }
+        function resetGame() { chan.send({ type: 'broadcast', event: 'reset' }); }
 
-        function checkWin() {
-            const lines = [];
-            const size = 10;
-            // Výpočet výherních kombinací (5 v řadě) by byl dlouhý, zjednodušený check:
-            // Pro produkci doporučuji přidat algoritmus pro kontrolu 5 v řadě
-        }
-
-        function resetGame() {
-            chan.send({ type: 'broadcast', event: 'reset' });
-        }
-
-        window.onload = () => {
-            initSupabase();
-            render();
-        };
+        window.onload = () => { initSupabase(); render(); };
     </script>
 </body>
 </html>
