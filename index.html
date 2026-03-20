@@ -6,40 +6,90 @@
     <title>Gomoku Online Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
     <style>
-        body { background: #1a1a1a; color: white; font-family: sans-serif; }
-        .grid-board { display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px; background: #444; border: 2px solid #444; width: 100%; max-width: 500px; aspect-ratio: 1; }
-        .cell { background: #2a2a2a; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; cursor: pointer; user-select: none; transition: 0.2s; }
-        .cell:hover:not(.filled) { background: #333; }
-        .cell.win { background: #166534 !important; animation: pulse 1s infinite; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+        body { 
+            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+            color: white; font-family: 'Segoe UI', Roboto, sans-serif;
+            min-height: 100-screen;
+        }
+        .glass {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .grid-board { 
+            display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; 
+            padding: 10px; border-radius: 12px; background: rgba(0,0,0,0.3);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+        }
+        .cell { 
+            aspect-ratio: 1; background: rgba(255, 255, 255, 0.03);
+            display: flex; align-items: center; justify-content: center; 
+            font-size: 1.8rem; cursor: pointer; user-select: none; 
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 4px;
+        }
+        .cell:hover:not(.filled) { 
+            background: rgba(255, 255, 255, 0.1); 
+            transform: scale(1.05);
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.3);
+        }
+        .cell.filled { cursor: default; }
+        .cell.win { 
+            background: #22c55e !important; 
+            color: white;
+            box-shadow: 0 0 20px #22c55e;
+            z-index: 10;
+        }
+        .turn-active {
+            border: 2px solid #3b82f6;
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
+            transform: scale(1.02);
+        }
     </style>
 </head>
 <body class="flex items-center justify-center min-h-screen p-4">
 
-    <div class="flex flex-col md:flex-row gap-8 w-full max-w-4xl">
-        <div class="flex-1 flex justify-center">
-            <div id="board" class="grid-board"></div>
+    <div class="flex flex-col lg:flex-row gap-8 w-full max-w-5xl items-start">
+        <div class="flex-1 w-full flex justify-center animate__animated animate__fadeIn">
+            <div id="board" class="grid-board w-full max-w-[550px]"></div>
         </div>
 
-        <div class="w-full md:w-64 space-y-4">
-            <div class="bg-[#2a2a2a] p-4 rounded-lg border border-gray-700">
-                <div class="flex items-center gap-2 mb-2">
-                    <div id="statusDot" class="w-3 h-3 rounded-full bg-red-500 text-transparent">.</div>
-                    <span id="statusText" class="text-xs font-mono uppercase text-gray-400">Připojování...</span>
+        <div class="w-full lg:w-80 space-y-4 animate__animated animate__fadeInRight">
+            <div id="statusCard" class="glass p-6 rounded-2xl transition-all duration-500">
+                <div class="flex items-center justify-between mb-6">
+                    <div class="flex items-center gap-2">
+                        <div id="statusDot" class="w-3 h-3 rounded-full bg-red-500 animate-pulse"></div>
+                        <span id="statusText" class="text-xs font-bold tracking-widest uppercase opacity-60">Connecting</span>
+                    </div>
+                    <span class="text-[10px] bg-white/10 px-2 py-1 rounded">v2.1 Stable</span>
                 </div>
-                <div class="text-2xl font-bold mb-1" id="turnDisplay">Na tahu: ❌</div>
-                <div id="gameMsg" class="text-yellow-400 font-bold text-lg h-8 mt-2"></div>
+                
+                <div class="space-y-4">
+                    <div id="playerX" class="flex items-center justify-between p-3 rounded-xl transition-all">
+                        <span class="font-medium text-blue-400">Hráč 1</span>
+                        <span class="text-2xl">❌</span>
+                    </div>
+                    <div id="playerO" class="flex items-center justify-between p-3 rounded-xl transition-all">
+                        <span class="font-medium text-red-400">Hráč 2</span>
+                        <span class="text-2xl">⭕</span>
+                    </div>
+                </div>
+
+                <div id="gameMsg" class="mt-6 text-center text-xl font-bold text-green-400 min-h-[1.5em]"></div>
             </div>
 
-            <button onclick="resetGame()" class="w-full bg-blue-600 hover:bg-blue-700 p-3 rounded font-bold transition shadow-lg">
-                Nová hra (Restart)
+            <button onclick="resetGame()" class="w-full bg-blue-600 hover:bg-blue-500 text-white p-4 rounded-xl font-bold transition-all transform active:scale-95 shadow-lg shadow-blue-900/20">
+                RESTARTOVAT HRU
             </button>
             
-            <div class="p-3 bg-black rounded border border-gray-800">
-                <p class="text-[10px] text-gray-500 mb-1 uppercase">Odkaz pro protihráče:</p>
-                <input type="text" id="shareUrl" readonly onclick="this.select()" 
-                       class="w-full bg-[#111] text-blue-400 text-[10px] p-1 rounded border border-gray-700 cursor-pointer">
+            <div class="glass p-4 rounded-2xl">
+                <p class="text-[10px] text-gray-400 mb-2 uppercase font-bold tracking-wider">Sdílet místnost</p>
+                <div class="flex gap-2">
+                    <input type="text" id="shareUrl" readonly onclick="this.select()" 
+                           class="flex-1 bg-black/40 text-blue-300 text-[11px] p-2 rounded-lg border border-white/10 cursor-pointer outline-none">
+                </div>
             </div>
         </div>
     </div>
@@ -51,7 +101,6 @@
         const params = new URLSearchParams(window.location.search);
         let room = params.get('r') || Math.random().toString(36).substring(7);
         if (!params.get('r')) window.history.replaceState({}, '', '?r=' + room);
-        
         document.getElementById('shareUrl').value = window.location.href;
 
         let sb, chan;
@@ -71,7 +120,7 @@
                     if (win) {
                         active = false;
                         winIndices = win;
-                        document.getElementById('gameMsg').textContent = `Vítěz: ${payload.symbol === 'X' ? '❌' : '⭕'}!`;
+                        document.getElementById('gameMsg').textContent = `VÍTĚZSTVÍ ${payload.symbol === 'X' ? '❌' : '⭕'}!`;
                     } else {
                         turn = payload.symbol === 'X' ? 'O' : 'X';
                     }
@@ -89,8 +138,9 @@
             .subscribe(status => {
                 const dot = document.getElementById('statusDot');
                 const txt = document.getElementById('statusText');
-                dot.className = `w-3 h-3 rounded-full ${status === 'SUBSCRIBED' ? 'bg-green-500' : 'bg-orange-500'}`;
-                txt.textContent = status === 'SUBSCRIBED' ? 'Online' : status;
+                const isOk = status === 'SUBSCRIBED';
+                dot.className = `w-3 h-3 rounded-full ${isOk ? 'bg-green-500' : 'bg-orange-500'} ${isOk ? '' : 'animate-pulse'}`;
+                txt.textContent = isOk ? 'Online' : 'Reconnecting';
             });
         }
 
@@ -99,16 +149,13 @@
             const r = Math.floor(idx / size);
             const c = idx % size;
             const dirs = [[0, 1], [1, 0], [1, 1], [1, -1]];
-
             for (let [dr, dc] of dirs) {
                 let line = [idx];
-                // Check oba směry pro každou linii
                 [[dr, dc], [-dr, -dc]].forEach(([curDr, curDc]) => {
                     for (let i = 1; i < 5; i++) {
                         let nr = r + curDr * i, nc = c + curDc * i;
-                        if (nr >= 0 && nr < size && nc >= 0 && nc < size && board[nr * size + nc] === symbol) {
-                            line.push(nr * size + nc);
-                        } else break;
+                        if (nr >= 0 && nr < size && nc >= 0 && nc < size && board[nr * size + nc] === symbol) line.push(nr * size + nc);
+                        else break;
                     }
                 });
                 if (line.length >= 5) return line;
@@ -121,16 +168,18 @@
             container.innerHTML = '';
             board.forEach((val, i) => {
                 const div = document.createElement('div');
-                div.className = `cell ${val ? 'filled' : ''} ${winIndices.includes(i) ? 'win' : ''}`;
+                div.className = `cell ${val ? 'filled animate__animated animate__bounceIn' : ''} ${winIndices.includes(i) ? 'win' : ''}`;
                 div.textContent = val === 'X' ? '❌' : (val === 'O' ? '⭕' : '');
                 div.onclick = () => { if (active && !board[i]) chan.send({ type: 'broadcast', event: 'move', payload: { idx: i, symbol: turn } }); };
                 container.appendChild(div);
             });
-            document.getElementById('turnDisplay').textContent = `Na tahu: ${turn === 'X' ? '❌' : '⭕'}`;
+            
+            // UI Turn indicator
+            document.getElementById('playerX').className = `flex items-center justify-between p-3 rounded-xl transition-all ${turn === 'X' && active ? 'turn-active bg-blue-500/10' : 'opacity-40'}`;
+            document.getElementById('playerO').className = `flex items-center justify-between p-3 rounded-xl transition-all ${turn === 'O' && active ? 'turn-active bg-red-500/10' : 'opacity-40'}`;
         }
 
         function resetGame() { chan.send({ type: 'broadcast', event: 'reset' }); }
-
         window.onload = () => { initSupabase(); render(); };
     </script>
 </body>
