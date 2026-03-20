@@ -1,0 +1,33 @@
+{
+  "name": "gomoku-online",
+  "version": "1.0.0",
+  "description": "Online multiplayer Gomoku (Piškvorky) game with real-time synchronization",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx serve .",
+    "dev": "npx live-server --port=3000",
+    "test": "echo \"No tests yet\" && exit 0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/username/gomoku-online.git"
+  },
+  "keywords": [
+    "gomoku",
+    "piskvorky",
+    "game",
+    "multiplayer",
+    "realtime",
+    "supabase"
+  ],
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/username/gomoku-online/issues"
+  },
+  "homepage": "https://github.com/username/gomoku-online#readme",
+  "devDependencies": {
+    "live-server": "^1.2.2",
+    "serve": "^14.2.1"
+  }
+}

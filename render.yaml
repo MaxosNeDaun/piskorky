@@ -1,0 +1,15 @@
+services:
+  - type: static
+    name: gomoku-online
+    runtime: static
+    buildCommand: "" # Statický web, není potřeba build
+    staticPublishPath: .
+    pullRequestPreviewsEnabled: true
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: no-cache
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
